@@ -1,0 +1,90 @@
+import java.io.*;
+import java.util.Scanner;
+
+public class FileEditor {
+    private static final String FILE_NAME = "text.txt";
+
+    public static void main(String[] args) throws IOException {
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("\n1. Показати вміст файлу");
+            System.out.println("2. Додати кілька рядків");
+            System.out.println("3. Показати рядки з діапазону");
+            System.out.println("4. Додати рядок у певну позицію");
+            System.out.println("0. Вийти");
+
+            switch (scanner.nextLine()) {
+                case "1" -> printFileWithLineNumbers();
+                case "2" -> addMultipleLines(scanner);
+                case "3" -> printLineRange(scanner);
+                case "4" -> insertLineAtPosition(scanner);
+                case "0" -> System.exit(0);
+            }
+        }
+    }
+
+    private static void printFileWithLineNumbers() throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+            String line;
+            int lineNumber = 1;
+            while ((line = reader.readLine()) != null) {
+                System.out.printf("%d: %s%n", lineNumber++, line);
+            }
+        }
+    }
+
+    private static void addMultipleLines(Scanner scanner) throws IOException {
+        System.out.println("Введіть рядки (порожній рядок — завершення):");
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME, true))) {
+            String line;
+            while (!(line = scanner.nextLine()).isEmpty()) {
+                writer.write(line);
+                writer.newLine();
+            }
+        }
+    }
+
+    private static void printLineRange(Scanner scanner) throws IOException {
+        System.out.print("Початковий рядок: ");
+        int start = Integer.parseInt(scanner.nextLine());
+        System.out.print("Кінцевий рядок: ");
+        int end = Integer.parseInt(scanner.nextLine());
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+            String[] lines = reader.lines().toArray(String[]::new);
+            for (int i = start - 1; i < end && i < lines.length; i++) {
+                System.out.printf("%d: %s%n", i + 1, lines[i]);
+            }
+        }
+    }
+
+    private static void insertLineAtPosition(Scanner scanner) throws IOException {
+        System.out.print("Номер рядка для вставки: ");
+        int position = Integer.parseInt(scanner.nextLine());
+
+        System.out.print("Введіть текст: ");
+        String newText = scanner.nextLine();
+
+        String[] lines;
+        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+            lines = reader.lines().toArray(String[]::new);
+        }
+
+        String[] newLines = new String[lines.length + 1];
+        for (int i = 0, j = 0; i < newLines.length; i++) {
+            if (i == position - 1) {
+                newLines[i] = newText;
+            } else {
+                newLines[i] = lines[j++];
+            }
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
+            for (String line : newLines) {
+                writer.write(line);
+                writer.newLine();
+            }
+        }
+    }
+}
