@@ -1,90 +1,210 @@
 import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Scanner;
 
-public class FileEditor {
-    private static final String FILE_NAME = "text.txt";
-
-    public static void main(String[] args) throws IOException {
-        Scanner scanner = new Scanner(System.in);
+public class TicTacToe {
+    public static void main(String[] args) {
+        GameSettings settings = GameSettings.loadSettings();
+        GameStatistics statistics = new GameStatistics();
+        Scanner sc = new Scanner(System.in);
 
         while (true) {
-            System.out.println("\n1. Показати вміст файлу");
-            System.out.println("2. Додати кілька рядків");
-            System.out.println("3. Показати рядки з діапазону");
-            System.out.println("4. Додати рядок у певну позицію");
-            System.out.println("0. Вийти");
+            System.out.println("\nМеню:");
+            System.out.println("1. Нова гра");
+            System.out.println("2. Налаштування");
+            System.out.println("3. Показати статистику");
+            System.out.println("4. Вихід");
+            System.out.print("Ваш вибір: ");
+            String choice = sc.nextLine();
 
-            switch (scanner.nextLine()) {
-                case "1" -> printFileWithLineNumbers();
-                case "2" -> addMultipleLines(scanner);
-                case "3" -> printLineRange(scanner);
-                case "4" -> insertLineAtPosition(scanner);
-                case "0" -> System.exit(0);
+            switch (choice) {
+                case "1" -> {
+                    GameBoard board = new GameBoard(settings.size);
+                    board.play(settings, statistics);
+                }
+                case "2" -> settings.configure();
+                case "3" -> statistics.show();
+                case "4" -> {
+                    return;
+                }
+                default -> System.out.println("Невірний вибір.");
             }
         }
     }
+}
 
-    private static void printFileWithLineNumbers() throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
-            String line;
-            int lineNumber = 1;
-            while ((line = reader.readLine()) != null) {
-                System.out.printf("%d: %s%n", lineNumber++, line);
-            }
+// ------------------------- Налаштування -------------------------
+class GameSettings {
+    public int size;
+    public String player1;
+    public String player2;
+
+    public GameSettings() {
+        this.size = 3;
+        this.player1 = "Player1";
+        this.player2 = "Player2";
+    }
+
+    public static GameSettings loadSettings() {
+        GameSettings s = new GameSettings();
+        try {
+            File f = new File("settings.txt");
+            if (!f.exists()) return s;
+
+            Scanner sc = new Scanner(f);
+            s.size = Integer.parseInt(sc.nextLine());
+            s.player1 = sc.nextLine();
+            s.player2 = sc.nextLine();
+            sc.close();
+        } catch (Exception e) {
+            System.out.println("Помилка читання налаштувань.");
+        }
+        return s;
+    }
+
+    public void save() {
+        try (FileWriter fw = new FileWriter("settings.txt")) {
+            fw.write(size + "\n");
+            fw.write(player1 + "\n");
+            fw.write(player2 + "\n");
+        } catch (IOException e) {
+            System.out.println("Помилка збереження налаштувань.");
         }
     }
 
-    private static void addMultipleLines(Scanner scanner) throws IOException {
-        System.out.println("Введіть рядки (порожній рядок — завершення):");
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME, true))) {
-            String line;
-            while (!(line = scanner.nextLine()).isEmpty()) {
-                writer.write(line);
-                writer.newLine();
-            }
+    public void configure() {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Введіть розмір поля (3-9): ");
+        size = Integer.parseInt(sc.nextLine());
+        System.out.print("Ім'я першого гравця: ");
+        player1 = sc.nextLine();
+        System.out.print("Ім'я другого гравця: ");
+        player2 = sc.nextLine();
+        save();
+    }
+}
+
+// ------------------------- Статистика -------------------------
+class GameStatistics {
+    public void save(String winner, int size, String p1, String p2) {
+        try (FileWriter fw = new FileWriter("stats.txt", true)) {
+            String now = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+            fw.write(now + "\n");
+            fw.write(p1 + " (X) vs " + p2 + " (O)\n");
+            fw.write("Переможець: " + winner + "\n");
+            fw.write("Розмір поля: " + size + "\n");
+            fw.write("---\n");
+        } catch (IOException e) {
+            System.out.println("Помилка збереження статистики.");
         }
     }
 
-    private static void printLineRange(Scanner scanner) throws IOException {
-        System.out.print("Початковий рядок: ");
-        int start = Integer.parseInt(scanner.nextLine());
-        System.out.print("Кінцевий рядок: ");
-        int end = Integer.parseInt(scanner.nextLine());
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
-            String[] lines = reader.lines().toArray(String[]::new);
-            for (int i = start - 1; i < end && i < lines.length; i++) {
-                System.out.printf("%d: %s%n", i + 1, lines[i]);
+    public void show() {
+        try {
+            File file = new File("stats.txt");
+            if (!file.exists()) {
+                System.out.println("Немає збереженої статистики.");
+                return;
             }
+            Scanner sc = new Scanner(file);
+            while (sc.hasNextLine()) {
+                System.out.println(sc.nextLine());
+            }
+        } catch (IOException e) {
+            System.out.println("Помилка читання статистики.");
         }
     }
+}
 
-    private static void insertLineAtPosition(Scanner scanner) throws IOException {
-        System.out.print("Номер рядка для вставки: ");
-        int position = Integer.parseInt(scanner.nextLine());
+// ------------------------- Ігрове поле -------------------------
+class GameBoard {
+    private char[][] board;
+    private int size;
 
-        System.out.print("Введіть текст: ");
-        String newText = scanner.nextLine();
+    public GameBoard(int size) {
+        this.size = size;
+        this.board = new char[size][size];
+        for (int i = 0; i < size; i++)
+            for (int j = 0; j < size; j++)
+                board[i][j] = ' ';
+    }
 
-        String[] lines;
-        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
-            lines = reader.lines().toArray(String[]::new);
-        }
+    public void play(GameSettings settings, GameStatistics stats) {
+        Scanner sc = new Scanner(System.in);
+        char current = 'X';
+        String currentName = settings.player1;
+        int moves = 0;
+        boolean gameOver = false;
 
-        String[] newLines = new String[lines.length + 1];
-        for (int i = 0, j = 0; i < newLines.length; i++) {
-            if (i == position - 1) {
-                newLines[i] = newText;
+        while (!gameOver && moves < size * size) {
+            printBoard();
+            System.out.println(currentName + " (" + current + ") - введіть рядок і стовпець (від 1):");
+            int row = sc.nextInt() - 1;
+            int col = sc.nextInt() - 1;
+
+            if (row < 0 || row >= size || col < 0 || col >= size || board[row][col] != ' ') {
+                System.out.println("Невірний хід.");
+                continue;
+            }
+
+            board[row][col] = current;
+            moves++;
+
+            if (checkWin(current)) {
+                printBoard();
+                System.out.println("Переміг: " + currentName);
+                stats.save(currentName, size, settings.player1, settings.player2);
+                gameOver = true;
             } else {
-                newLines[i] = lines[j++];
+                current = (current == 'X') ? 'O' : 'X';
+                currentName = (current == 'X') ? settings.player1 : settings.player2;
             }
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
-            for (String line : newLines) {
-                writer.write(line);
-                writer.newLine();
+        if (!gameOver) {
+            printBoard();
+            System.out.println("Нічия!");
+            stats.save("Нічия", size, settings.player1, settings.player2);
+        }
+    }
+
+    private void printBoard() {
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                System.out.print(" " + board[i][j] + " ");
+                if (j < size - 1) System.out.print("|");
             }
+            System.out.println();
+            if (i < size - 1) {
+                for (int j = 0; j < size; j++) {
+                    System.out.print("---");
+                    if (j < size - 1) System.out.print("+");
+                }
+                System.out.println();
+            }
+        }
+    }
+
+    private boolean checkWin(char sym) {
+        for (int i = 0; i < size; i++) {
+            boolean row = true, col = true;
+            for (int j = 0; j < size; j++) {
+                if (board[i][j] != sym) row = false;
+                if (board[j][i] != sym) col = false;
+            }
+            if (row || col) return true;
+        }
+
+        boolean diag1 = true, diag2 = true;
+        for (int i = 0; i < size; i++) {
+            if (board[i][i] != sym) diag1 = false;
+            if (board[i][size - i - 1] != sym) diag2 = false;
+        }
+        return diag1 || diag2;
+    }
+}
+
         }
     }
 }
