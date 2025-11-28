@@ -1,210 +1,362 @@
-import java.io.*;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.List;
 
-public class TicTacToe {
+public class Main {
+
     public static void main(String[] args) {
-        GameSettings settings = GameSettings.loadSettings();
-        GameStatistics statistics = new GameStatistics();
-        Scanner sc = new Scanner(System.in);
+        
+        System.out.println("=== 1. Створення об'єктів через Фабрику (повертає абстрактні типи) ===");
+        
+        Person r1 = LibraryFactory.createReader("R001", "Іван", "Петренко", "050-123-45-67");
+        Person l1 = LibraryFactory.createLibrarian("L001", "Марія", "Василівна", "09:00-17:00");
+        
+        Publication p1 = LibraryFactory.createFictionBook("978-0743", "It", "Stephen King", 1986, "Horror");
+        Publication p2 = LibraryFactory.createNonFictionBook("978-0321", "Clean Code", "Robert Martin", 2008, "Software");
+        Publication p3 = LibraryFactory.createMagazine("National Geographic", 2024, 5);
 
-        while (true) {
-            System.out.println("\nМеню:");
-            System.out.println("1. Нова гра");
-            System.out.println("2. Налаштування");
-            System.out.println("3. Показати статистику");
-            System.out.println("4. Вихід");
-            System.out.print("Ваш вибір: ");
-            String choice = sc.nextLine();
+        System.out.println("\n=== 2. Демонстрація єдиної функції (Поліморфізм) ===");
+        
+        System.out.println("--- Обробка Персон ---");
+        processPerson(r1);
+        processPerson(l1);
+        
+        System.out.println("\n--- Обробка Публікацій ---");
+        processPublication(p1);
+        processPublication(p2);
+        processPublication(p3);
 
-            switch (choice) {
-                case "1" -> {
-                    GameBoard board = new GameBoard(settings.size);
-                    board.play(settings, statistics);
-                }
-                case "2" -> settings.configure();
-                case "3" -> statistics.show();
-                case "4" -> {
-                    return;
-                }
-                default -> System.out.println("Невірний вибір.");
-            }
+        System.out.println("\n=== 3. Дослідження поведінки (Абстрактне vs Пряме посилання) ===");
+        
+        System.out.println("\n--- Виклик через АБСТРАКТНЕ посилання (Publication p) ---");
+        p1.issue();
+        
+        System.out.println("\n--- Виклик через ПРЯМЕ посилання (FictionBook fb) ---");
+        FictionBook fb1 = (FictionBook) p1;
+        fb1.issue();
+
+        System.out.println("\n=== 4. Фінальний звіт зі Сховища ===");
+        LibraryStorage.showAllAssets();
+    }
+    
+    public static void processPerson(Person person) {
+        System.out.println("Обробка особи... Роль: " + person.getRole());
+        person.printDetails();
+        person.performMainDuty();
+    }
+    
+    public static void processPublication(Publication pub) {
+        System.out.println("Обробка публікації... Тип: " + pub.getFullDescription());
+        if(pub.isAvailable()) {
+            pub.issue();
+        } else {
+            pub.returnItem();
         }
     }
 }
 
-// ------------------------- Налаштування -------------------------
-class GameSettings {
-    public int size;
-    public String player1;
-    public String player2;
+abstract class Person {
 
-    public GameSettings() {
-        this.size = 3;
-        this.player1 = "Player1";
-        this.player2 = "Player2";
-    }
+    private static int personCounter = 0;
 
-    public static GameSettings loadSettings() {
-        GameSettings s = new GameSettings();
-        try {
-            File f = new File("settings.txt");
-            if (!f.exists()) return s;
+    public static class NameInfo {
+        private String firstName;
+        private String lastName;
 
-            Scanner sc = new Scanner(f);
-            s.size = Integer.parseInt(sc.nextLine());
-            s.player1 = sc.nextLine();
-            s.player2 = sc.nextLine();
-            sc.close();
-        } catch (Exception e) {
-            System.out.println("Помилка читання налаштувань.");
+        public NameInfo(String firstName, String lastName) {
+            this.firstName = firstName;
+            this.lastName = lastName;
         }
-        return s;
-    }
 
-    public void save() {
-        try (FileWriter fw = new FileWriter("settings.txt")) {
-            fw.write(size + "\n");
-            fw.write(player1 + "\n");
-            fw.write(player2 + "\n");
-        } catch (IOException e) {
-            System.out.println("Помилка збереження налаштувань.");
+        @Override
+        public String toString() {
+            return firstName + " " + lastName;
         }
     }
 
-    public void configure() {
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Введіть розмір поля (3-9): ");
-        size = Integer.parseInt(sc.nextLine());
-        System.out.print("Ім'я першого гравця: ");
-        player1 = sc.nextLine();
-        System.out.print("Ім'я другого гравця: ");
-        player2 = sc.nextLine();
-        save();
+    protected String id;
+    protected NameInfo nameInfo;
+    String internalNotes; 
+
+    public Person(String id, NameInfo nameInfo) {
+        this.id = id;
+        this.nameInfo = nameInfo;
+        this.internalNotes = "N/A";
+        personCounter++;
+    }
+
+    public String getFullName() {
+        return nameInfo.toString();
+    }
+    
+    public static int getPersonCount() {
+        return personCounter;
+    }
+    
+    public abstract void printDetails();
+    public abstract String getRole();
+    public abstract void performMainDuty();
+}
+
+abstract class Publication {
+
+    private static int publicationCounter = 0;
+    public static final String DEFAULT_STATUS = "в наявності";
+
+    protected String title;
+    protected int publicationYear;
+    protected String status;
+
+    public Publication(String title, int publicationYear) {
+        this.title = title;
+        this.publicationYear = publicationYear;
+        this.status = DEFAULT_STATUS;
+        publicationCounter++;
+    }
+    
+    public boolean isAvailable() {
+        return this.status.equals(DEFAULT_STATUS);
+    }
+
+    public String getTitle() {
+        return title;
+    }
+    
+    public static int getPublicationCount() {
+        return publicationCounter;
+    }
+    
+    public abstract void issue();
+    public abstract void returnItem();
+    public abstract String getFullDescription();
+
+    @Override
+    public String toString() {
+        return "Publication{" +
+                "title='" + title + '\'' +
+                ", year=" + publicationYear +
+                ", status='" + status + '\'' +
+                '}';
     }
 }
 
-// ------------------------- Статистика -------------------------
-class GameStatistics {
-    public void save(String winner, int size, String p1, String p2) {
-        try (FileWriter fw = new FileWriter("stats.txt", true)) {
-            String now = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-            fw.write(now + "\n");
-            fw.write(p1 + " (X) vs " + p2 + " (O)\n");
-            fw.write("Переможець: " + winner + "\n");
-            fw.write("Розмір поля: " + size + "\n");
-            fw.write("---\n");
-        } catch (IOException e) {
-            System.out.println("Помилка збереження статистики.");
-        }
+class Reader extends Person {
+    private String phoneNumber;
+    private List<Publication> borrowedItems;
+
+    public Reader(String id, String firstName, String lastName, String phoneNumber) {
+        super(id, new Person.NameInfo(firstName, lastName));
+        this.phoneNumber = phoneNumber;
+        this.borrowedItems = new ArrayList<>();
+    }
+    
+    @Override
+    public void printDetails() {
+        System.out.println("  ID: " + id + ", ПІБ: " + nameInfo.toString() + ", Телефон: " + phoneNumber);
+    }
+    
+    @Override
+    public String getRole() {
+        return "Читач";
+    }
+    
+    @Override
+    public void performMainDuty() {
+        System.out.println("  Читач " + getFullName() + " шукає книги.");
     }
 
-    public void show() {
-        try {
-            File file = new File("stats.txt");
-            if (!file.exists()) {
-                System.out.println("Немає збереженої статистики.");
-                return;
-            }
-            Scanner sc = new Scanner(file);
-            while (sc.hasNextLine()) {
-                System.out.println(sc.nextLine());
-            }
-        } catch (IOException e) {
-            System.out.println("Помилка читання статистики.");
-        }
-    }
-}
-
-// ------------------------- Ігрове поле -------------------------
-class GameBoard {
-    private char[][] board;
-    private int size;
-
-    public GameBoard(int size) {
-        this.size = size;
-        this.board = new char[size][size];
-        for (int i = 0; i < size; i++)
-            for (int j = 0; j < size; j++)
-                board[i][j] = ' ';
-    }
-
-    public void play(GameSettings settings, GameStatistics stats) {
-        Scanner sc = new Scanner(System.in);
-        char current = 'X';
-        String currentName = settings.player1;
-        int moves = 0;
-        boolean gameOver = false;
-
-        while (!gameOver && moves < size * size) {
-            printBoard();
-            System.out.println(currentName + " (" + current + ") - введіть рядок і стовпець (від 1):");
-            int row = sc.nextInt() - 1;
-            int col = sc.nextInt() - 1;
-
-            if (row < 0 || row >= size || col < 0 || col >= size || board[row][col] != ' ') {
-                System.out.println("Невірний хід.");
-                continue;
-            }
-
-            board[row][col] = current;
-            moves++;
-
-            if (checkWin(current)) {
-                printBoard();
-                System.out.println("Переміг: " + currentName);
-                stats.save(currentName, size, settings.player1, settings.player2);
-                gameOver = true;
-            } else {
-                current = (current == 'X') ? 'O' : 'X';
-                currentName = (current == 'X') ? settings.player1 : settings.player2;
-            }
-        }
-
-        if (!gameOver) {
-            printBoard();
-            System.out.println("Нічия!");
-            stats.save("Нічия", size, settings.player1, settings.player2);
-        }
-    }
-
-    private void printBoard() {
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                System.out.print(" " + board[i][j] + " ");
-                if (j < size - 1) System.out.print("|");
-            }
-            System.out.println();
-            if (i < size - 1) {
-                for (int j = 0; j < size; j++) {
-                    System.out.print("---");
-                    if (j < size - 1) System.out.print("+");
-                }
-                System.out.println();
-            }
-        }
-    }
-
-    private boolean checkWin(char sym) {
-        for (int i = 0; i < size; i++) {
-            boolean row = true, col = true;
-            for (int j = 0; j < size; j++) {
-                if (board[i][j] != sym) row = false;
-                if (board[j][i] != sym) col = false;
-            }
-            if (row || col) return true;
-        }
-
-        boolean diag1 = true, diag2 = true;
-        for (int i = 0; i < size; i++) {
-            if (board[i][i] != sym) diag1 = false;
-            if (board[i][size - i - 1] != sym) diag2 = false;
-        }
-        return diag1 || diag2;
+    public void borrowItem(Publication item) {
+        System.out.println(this.getFullName() + " бере " + item.getTitle());
+        this.borrowedItems.add(item);
     }
 }
 
+class Librarian extends Person {
+    private String shift;
+
+    public Librarian(String id, String firstName, String lastName, String shift) {
+        super(id, new Person.NameInfo(firstName, lastName));
+        this.shift = shift;
+    }
+    
+    @Override
+    public void printDetails() {
+        System.out.println("  ID: " + id + ", ПІБ: " + nameInfo.toString() + ", Зміна: " + shift);
+    }
+    
+    @Override
+    public String getRole() {
+        return "Бібліотекар";
+    }
+    
+    @Override
+    public void performMainDuty() {
+        System.out.println("  Бібліотекар " + getFullName() + " керує фондом.");
+    }
+}
+
+abstract class Book extends Publication {
+    protected String isbn;
+    protected String author;
+
+    public Book(String isbn, String title, String author, int publicationYear) {
+        super(title, publicationYear);
+        this.isbn = isbn;
+        this.author = author;
+    }
+
+    @Override
+    public void issue() {
+        System.out.println("  Видача КНИГИ: '" + this.title + "' (Автор: " + author + ")");
+        this.status = "видана";
+    }
+    
+    @Override
+    public void returnItem() {
+        System.out.println("  Повернення КНИГИ: '" + this.title + "'");
+        this.status = "в наявності";
+    }
+    
+    @Override
+    public String getFullDescription() {
+        return "Книга (Автор: " + author + ", Категорія: " + getGenreOrCategory() + ")";
+    }
+    
+    public abstract String getGenreOrCategory();
+}
+
+class Magazine extends Publication {
+    private int issueNumber;
+
+    public Magazine(String title, int publicationYear, int issueNumber) {
+        super(title, publicationYear);
+        this.issueNumber = issueNumber;
+    }
+
+    @Override
+    public void issue() {
+        System.out.println("  Видача ЖУРНАЛУ: '" + this.title + "' (№ " + issueNumber + ")");
+        this.status = "видана";
+    }
+    
+    @Override
+    public void returnItem() {
+        System.out.println("  Повернення ЖУРНАЛУ: '" + this.title + "'");
+        this.status = "в наявності";
+    }
+    
+    @Override
+    public String getFullDescription() {
+        return "Журнал (Випуск: " + issueNumber + ")";
+    }
+}
+
+class FictionBook extends Book {
+    private String genre;
+
+    public FictionBook(String isbn, String title, String author, int publicationYear, String genre) {
+        super(isbn, title, author, publicationYear);
+        this.genre = genre;
+    }
+    
+    @Override
+    public String getGenreOrCategory() {
+        return genre;
+    }
+    
+    @Override
+    public void issue() {
+        System.out.println("  Видача ХУДОЖНЬОЇ КНИГИ: '" + this.title + "' (Жанр: " + genre + ")");
+        this.status = "видана";
+    }
+}
+
+class NonFictionBook extends Book {
+    private String category;
+
+    public NonFictionBook(String isbn, String title, String author, int publicationYear, String category) {
+        super(isbn, title, author, publicationYear);
+        this.category = category;
+    }
+    
+    @Override
+    public String getGenreOrCategory() {
+        return category;
+    }
+    
+    @Override
+    public void issue() {
+        System.out.println("  Видача НАУКОВОЇ КНИГИ: '" + this.title + "' (Категорія: " + category + ")");
+        this.status = "видана";
+    }
+}
+
+final class LibraryStorage {
+
+    public static final List<Person> ALL_PEOPLE = new ArrayList<>();
+    public static final List<Publication> ALL_PUBLICATIONS = new ArrayList<>();
+
+    private LibraryStorage() {}
+
+    public static void addPerson(Person person) {
+        if (person != null) {
+            ALL_PEOPLE.add(person);
+            System.out.println("STORAGE: Зареєстровано особу (" + person.getRole() + "): " + person.getFullName());
         }
+    }
+
+    public static void addPublication(Publication pub) {
+        if (pub != null) {
+            ALL_PUBLICATIONS.add(pub);
+            System.out.println("STORAGE: Зареєстровано публікацію: " + pub.getTitle());
+        }
+    }
+
+    public static void showAllAssets() {
+        System.out.println("\n============== ЗВІТ БІБЛІОТЕКИ ==============");
+        System.out.println("--- Загальна кількість осіб: " + Person.getPersonCount() + " ---");
+        for (Person p : ALL_PEOPLE) {
+            p.printDetails();
+        }
+        
+        System.out.println("\n--- Загальна кількість публікацій: " + Publication.getPublicationCount() + " ---");
+        for (Publication p : ALL_PUBLICATIONS) {
+            System.out.println("  - " + p.getTitle() + " (" + p.getFullDescription() + "), Статус: " + p.status);
+        }
+        System.out.println("==============================================");
+    }
+}
+
+final class LibraryFactory {
+
+    private LibraryFactory() {}
+
+    public static Person createReader(String id, String firstName, String lastName, String phone) {
+        Person reader = new Reader(id, firstName, lastName, phone);
+        LibraryStorage.addPerson(reader);
+        return reader;
+    }
+
+    public static Person createLibrarian(String id, String firstName, String lastName, String shift) {
+        Person librarian = new Librarian(id, firstName, lastName, shift);
+        LibraryStorage.addPerson(librarian);
+        return librarian;
+    }
+    
+    public static Publication createFictionBook(String isbn, String title, String author, int year, String genre) {
+        Publication book = new FictionBook(isbn, title, author, year, genre);
+        LibraryStorage.addPublication(book);
+        return book;
+    }
+    
+    public static Publication createNonFictionBook(String isbn, String title, String author, int year, String category) {
+        Publication book = new NonFictionBook(isbn, title, author, year, category);
+        LibraryStorage.addPublication(book);
+        return book;
+    }
+
+    public static Publication createMagazine(String title, int year, int issueNumber) {
+        Publication mag = new Magazine(title, year, issueNumber);
+        LibraryStorage.addPublication(mag);
+        return mag;
     }
 }
