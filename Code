@@ -324,7 +324,7 @@ public class LibraryApp {
         // Поліморфний метод: приймає абстрактний тип
         public boolean processDownload(SystemUser user, LibraryResource resource) {
             if (!resource.isAvailable()) { // Поліморфний виклик абстрактного методу
-                System.out.println("❌ Помилка: Ресурс недоступний для завантаження.");
+                System.out.println(" Помилка: Ресурс недоступний для завантаження.");
                 return false;
             }
             
@@ -337,7 +337,7 @@ public class LibraryApp {
                 ((Book) resource).setAvailability(false); 
             }
             
-            System.out.println("✅ Завантаження ресурсу ID " + resource.getId() + " успішне!");
+            System.out.println(" Завантаження ресурсу ID " + resource.getId() + " успішне!");
             resource.viewContent(); // Поліморфний виклик
             return true;
         }
