@@ -1,362 +1,427 @@
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public class Main {
-
-    public static void main(String[] args) {
-        
-        System.out.println("=== 1. Створення об'єктів через Фабрику (повертає абстрактні типи) ===");
-        
-        Person r1 = LibraryFactory.createReader("R001", "Іван", "Петренко", "050-123-45-67");
-        Person l1 = LibraryFactory.createLibrarian("L001", "Марія", "Василівна", "09:00-17:00");
-        
-        Publication p1 = LibraryFactory.createFictionBook("978-0743", "It", "Stephen King", 1986, "Horror");
-        Publication p2 = LibraryFactory.createNonFictionBook("978-0321", "Clean Code", "Robert Martin", 2008, "Software");
-        Publication p3 = LibraryFactory.createMagazine("National Geographic", 2024, 5);
-
-        System.out.println("\n=== 2. Демонстрація єдиної функції (Поліморфізм) ===");
-        
-        System.out.println("--- Обробка Персон ---");
-        processPerson(r1);
-        processPerson(l1);
-        
-        System.out.println("\n--- Обробка Публікацій ---");
-        processPublication(p1);
-        processPublication(p2);
-        processPublication(p3);
-
-        System.out.println("\n=== 3. Дослідження поведінки (Абстрактне vs Пряме посилання) ===");
-        
-        System.out.println("\n--- Виклик через АБСТРАКТНЕ посилання (Publication p) ---");
-        p1.issue();
-        
-        System.out.println("\n--- Виклик через ПРЯМЕ посилання (FictionBook fb) ---");
-        FictionBook fb1 = (FictionBook) p1;
-        fb1.issue();
-
-        System.out.println("\n=== 4. Фінальний звіт зі Сховища ===");
-        LibraryStorage.showAllAssets();
-    }
+public class LibraryApp {
     
-    public static void processPerson(Person person) {
-        System.out.println("Обробка особи... Роль: " + person.getRole());
-        person.printDetails();
-        person.performMainDuty();
-    }
-    
-    public static void processPublication(Publication pub) {
-        System.out.println("Обробка публікації... Тип: " + pub.getFullDescription());
-        if(pub.isAvailable()) {
-            pub.issue();
-        } else {
-            pub.returnItem();
+    static class Storage {
+        public static final List<User> USERS = new ArrayList<>();
+        public static final List<LibraryResource> RESOURCES = new ArrayList<>();
+        public static final Map<Integer, DownloadOrder> DOWNLOADS = new HashMap<>();
+        
+        private Storage() {}
+        
+        public static void addResource(LibraryResource resource) {
+            RESOURCES.add(resource);
+            System.out.println("Storage: Resource ID " + resource.getId() + " added to global storage.");
+        }
+        
+        public static void addUser(User user) {
+            USERS.add(user);
+            System.out.println("Storage: User ID " + user.getId() + " added to global storage.");
         }
     }
-}
 
-abstract class Person {
+    static class EntityFactory {
+        private static int nextUserId = 1000;
+        private static int nextResourceId = 2000;
+        private static int nextDownloadId = 3000;
 
-    private static int personCounter = 0;
+        private EntityFactory() {}
 
-    public static class NameInfo {
-        private String firstName;
-        private String lastName;
+        public static User createUser(String firstName, String lastName, String login, String password) {
+            User newUser = new User(nextUserId++, firstName, lastName, login, password);
+            Storage.addUser(newUser);
+            return newUser;
+        }
 
-        public NameInfo(String firstName, String lastName) {
-            this.firstName = firstName;
-            this.lastName = lastName;
+        public static Admin createAdmin(String firstName, String lastName, String login, String password) {
+            Admin newAdmin = new Admin(nextUserId++, firstName, lastName, login, password);
+            Storage.addUser(newAdmin);
+            return newAdmin;
+        }
+
+        public static Book createBook(String title, String author, int year, String fileLink) {
+            Book newBook = new Book(nextResourceId++, title, author, year, fileLink);
+            Storage.addResource(newBook);
+            return newBook;
+        }
+
+        public static AudioBook createAudioBook(String title, String author, int durationSeconds) {
+            AudioBook newAudioBook = new AudioBook(nextResourceId++, title, author, durationSeconds);
+            Storage.addResource(newAudioBook);
+            return newAudioBook;
+        }
+
+        public static DownloadOrder createDownloadOrder(User user, LibraryResource resource) {
+            DownloadOrder newOrder = new DownloadOrder(nextDownloadId++, user.getId(), resource.getId());
+            Storage.DOWNLOADS.put(newOrder.getId(), newOrder);
+            return newOrder;
+        }
+    }
+
+    static abstract class BaseEntity { // АБСТРАКТНИЙ
+        protected int id;
+        
+        public BaseEntity(int id) {
+            this.id = id;
+        }
+
+        public static int getCount(List<?> collection) {
+            System.out.println("BaseEntity static method: getCount - called.");
+            return collection.size();
+        }
+        
+        public abstract void displayInfo(); // АБСТРАКТНИЙ МЕТОД 1
+        public abstract String getType(); // АБСТРАКТНИЙ МЕТОД 2
+        protected abstract void validate(); // АБСТРАКТНИЙ МЕТОД 3 (protected)
+
+        public int getId() {
+            return this.id;
+        }
+    }
+
+    static abstract class SystemUser extends BaseEntity { // АБСТРАКТНИЙ
+        protected String login;
+        protected String role;
+
+        public SystemUser(int id, String login, String role) {
+            super(id);
+            this.login = login;
+            this.role = role;
+            validate();
+        }
+        
+        public static void logSystemAccess(String userLogin) {
+            System.out.println("SystemUser static method: logSystemAccess - User " + userLogin + " accessed the system.");
+        }
+
+        public abstract boolean authenticate(String password); // АБСТРАКТНИЙ МЕТОД
+        public abstract String getFullName(); // АБСТРАКТНИЙ МЕТОД
+    }
+    
+    static class User extends SystemUser {
+        
+        static class NameInfo {
+            private String firstName;
+            private String lastName;
+
+            public NameInfo(String firstName, String lastName) {
+                this.firstName = firstName;
+                this.lastName = lastName;
+            }
+
+            @Override
+            public String toString() {
+                return firstName + " " + lastName;
+            }
+        }
+        
+        private NameInfo nameInfo;
+        private String hashedPassword;
+
+        public User(int userId, String firstName, String lastName, String login, String password) {
+            super(userId, login, "звичайний користувач");
+            this.nameInfo = new NameInfo(firstName, lastName);
+            this.hashedPassword = String.valueOf(Objects.hash(password));
+        }
+        
+        @Override
+        public boolean authenticate(String password) {
+            SystemUser.logSystemAccess(login);
+            System.out.println("User method: authenticate - Checking password for " + login);
+            return true;
+        }
+
+        public boolean login(String password) {
+            return authenticate(password);
         }
 
         @Override
-        public String toString() {
-            return firstName + " " + lastName;
+        public String getFullName() {return nameInfo.toString();}
+        public String getRole() {return role;}
+        
+        boolean checkAccessRole(String requiredRole) {
+            return this.role.equals(requiredRole);
+        }
+
+        @Override
+        protected void validate() {
+            System.out.println("User method: validate - User role is set.");
+        }
+
+        @Override
+        public String getType() { return "UserAccount"; }
+        
+        @Override
+        public void displayInfo() {
+            System.out.println("User: " + getFullName() + ", Role: " + role + ", Type: " + getType());
         }
     }
 
-    protected String id;
-    protected NameInfo nameInfo;
-    String internalNotes; 
+    static class Admin extends User {
+        private List<String> actionsLog;
 
-    public Person(String id, NameInfo nameInfo) {
-        this.id = id;
-        this.nameInfo = nameInfo;
-        this.internalNotes = "N/A";
-        personCounter++;
-    }
-
-    public String getFullName() {
-        return nameInfo.toString();
-    }
-    
-    public static int getPersonCount() {
-        return personCounter;
-    }
-    
-    public abstract void printDetails();
-    public abstract String getRole();
-    public abstract void performMainDuty();
-}
-
-abstract class Publication {
-
-    private static int publicationCounter = 0;
-    public static final String DEFAULT_STATUS = "в наявності";
-
-    protected String title;
-    protected int publicationYear;
-    protected String status;
-
-    public Publication(String title, int publicationYear) {
-        this.title = title;
-        this.publicationYear = publicationYear;
-        this.status = DEFAULT_STATUS;
-        publicationCounter++;
-    }
-    
-    public boolean isAvailable() {
-        return this.status.equals(DEFAULT_STATUS);
-    }
-
-    public String getTitle() {
-        return title;
-    }
-    
-    public static int getPublicationCount() {
-        return publicationCounter;
-    }
-    
-    public abstract void issue();
-    public abstract void returnItem();
-    public abstract String getFullDescription();
-
-    @Override
-    public String toString() {
-        return "Publication{" +
-                "title='" + title + '\'' +
-                ", year=" + publicationYear +
-                ", status='" + status + '\'' +
-                '}';
-    }
-}
-
-class Reader extends Person {
-    private String phoneNumber;
-    private List<Publication> borrowedItems;
-
-    public Reader(String id, String firstName, String lastName, String phoneNumber) {
-        super(id, new Person.NameInfo(firstName, lastName));
-        this.phoneNumber = phoneNumber;
-        this.borrowedItems = new ArrayList<>();
-    }
-    
-    @Override
-    public void printDetails() {
-        System.out.println("  ID: " + id + ", ПІБ: " + nameInfo.toString() + ", Телефон: " + phoneNumber);
-    }
-    
-    @Override
-    public String getRole() {
-        return "Читач";
-    }
-    
-    @Override
-    public void performMainDuty() {
-        System.out.println("  Читач " + getFullName() + " шукає книги.");
-    }
-
-    public void borrowItem(Publication item) {
-        System.out.println(this.getFullName() + " бере " + item.getTitle());
-        this.borrowedItems.add(item);
-    }
-}
-
-class Librarian extends Person {
-    private String shift;
-
-    public Librarian(String id, String firstName, String lastName, String shift) {
-        super(id, new Person.NameInfo(firstName, lastName));
-        this.shift = shift;
-    }
-    
-    @Override
-    public void printDetails() {
-        System.out.println("  ID: " + id + ", ПІБ: " + nameInfo.toString() + ", Зміна: " + shift);
-    }
-    
-    @Override
-    public String getRole() {
-        return "Бібліотекар";
-    }
-    
-    @Override
-    public void performMainDuty() {
-        System.out.println("  Бібліотекар " + getFullName() + " керує фондом.");
-    }
-}
-
-abstract class Book extends Publication {
-    protected String isbn;
-    protected String author;
-
-    public Book(String isbn, String title, String author, int publicationYear) {
-        super(title, publicationYear);
-        this.isbn = isbn;
-        this.author = author;
-    }
-
-    @Override
-    public void issue() {
-        System.out.println("  Видача КНИГИ: '" + this.title + "' (Автор: " + author + ")");
-        this.status = "видана";
-    }
-    
-    @Override
-    public void returnItem() {
-        System.out.println("  Повернення КНИГИ: '" + this.title + "'");
-        this.status = "в наявності";
-    }
-    
-    @Override
-    public String getFullDescription() {
-        return "Книга (Автор: " + author + ", Категорія: " + getGenreOrCategory() + ")";
-    }
-    
-    public abstract String getGenreOrCategory();
-}
-
-class Magazine extends Publication {
-    private int issueNumber;
-
-    public Magazine(String title, int publicationYear, int issueNumber) {
-        super(title, publicationYear);
-        this.issueNumber = issueNumber;
-    }
-
-    @Override
-    public void issue() {
-        System.out.println("  Видача ЖУРНАЛУ: '" + this.title + "' (№ " + issueNumber + ")");
-        this.status = "видана";
-    }
-    
-    @Override
-    public void returnItem() {
-        System.out.println("  Повернення ЖУРНАЛУ: '" + this.title + "'");
-        this.status = "в наявності";
-    }
-    
-    @Override
-    public String getFullDescription() {
-        return "Журнал (Випуск: " + issueNumber + ")";
-    }
-}
-
-class FictionBook extends Book {
-    private String genre;
-
-    public FictionBook(String isbn, String title, String author, int publicationYear, String genre) {
-        super(isbn, title, author, publicationYear);
-        this.genre = genre;
-    }
-    
-    @Override
-    public String getGenreOrCategory() {
-        return genre;
-    }
-    
-    @Override
-    public void issue() {
-        System.out.println("  Видача ХУДОЖНЬОЇ КНИГИ: '" + this.title + "' (Жанр: " + genre + ")");
-        this.status = "видана";
-    }
-}
-
-class NonFictionBook extends Book {
-    private String category;
-
-    public NonFictionBook(String isbn, String title, String author, int publicationYear, String category) {
-        super(isbn, title, author, publicationYear);
-        this.category = category;
-    }
-    
-    @Override
-    public String getGenreOrCategory() {
-        return category;
-    }
-    
-    @Override
-    public void issue() {
-        System.out.println("  Видача НАУКОВОЇ КНИГИ: '" + this.title + "' (Категорія: " + category + ")");
-        this.status = "видана";
-    }
-}
-
-final class LibraryStorage {
-
-    public static final List<Person> ALL_PEOPLE = new ArrayList<>();
-    public static final List<Publication> ALL_PUBLICATIONS = new ArrayList<>();
-
-    private LibraryStorage() {}
-
-    public static void addPerson(Person person) {
-        if (person != null) {
-            ALL_PEOPLE.add(person);
-            System.out.println("STORAGE: Зареєстровано особу (" + person.getRole() + "): " + person.getFullName());
+        public Admin(int adminId, String firstName, String lastName, String login, String password) {
+            super(adminId, firstName, lastName, login, password);
+            this.role = "адміністратор";
+            this.actionsLog = new ArrayList<>();
         }
-    }
 
-    public static void addPublication(Publication pub) {
-        if (pub != null) {
-            ALL_PUBLICATIONS.add(pub);
-            System.out.println("STORAGE: Зареєстровано публікацію: " + pub.getTitle());
+        public boolean depositBook(LibraryResource resource, LibraryCatalog catalog) {
+            if (!catalog.isResourceInCatalog(resource.getId())) {
+                catalog.internalAddResource(resource); 
+                this.actionsLog.add("Додано ресурс ID: " + resource.getId());
+                return true;
+            }
+            return false;
         }
-    }
 
-    public static void showAllAssets() {
-        System.out.println("\n============== ЗВІТ БІБЛІОТЕКИ ==============");
-        System.out.println("--- Загальна кількість осіб: " + Person.getPersonCount() + " ---");
-        for (Person p : ALL_PEOPLE) {
-            p.printDetails();
+        @Override
+        protected void validate() {
+            System.out.println("Admin method: validate - Admin credentials confirmed.");
         }
         
-        System.out.println("\n--- Загальна кількість публікацій: " + Publication.getPublicationCount() + " ---");
-        for (Publication p : ALL_PUBLICATIONS) {
-            System.out.println("  - " + p.getTitle() + " (" + p.getFullDescription() + "), Статус: " + p.status);
+        @Override
+        public String getType() { return "AdminAccount"; }
+
+        @Override
+        public void displayInfo() {
+            System.out.println("ADMIN: " + getFullName() + ", Log count: " + actionsLog.size() + ", Type: " + getType());
         }
-        System.out.println("==============================================");
-    }
-}
-
-final class LibraryFactory {
-
-    private LibraryFactory() {}
-
-    public static Person createReader(String id, String firstName, String lastName, String phone) {
-        Person reader = new Reader(id, firstName, lastName, phone);
-        LibraryStorage.addPerson(reader);
-        return reader;
     }
 
-    public static Person createLibrarian(String id, String firstName, String lastName, String shift) {
-        Person librarian = new Librarian(id, firstName, lastName, shift);
-        LibraryStorage.addPerson(librarian);
-        return librarian;
+    static abstract class LibraryResource extends BaseEntity { // АБСТРАКТНИЙ
+        protected String title;
+        protected String author;
+
+        public LibraryResource(int id, String title, String author) {
+            super(id);
+            this.title = title;
+            this.author = author;
+            validate();
+        }
+
+        public abstract boolean isAvailable(); // АБСТРАКТНИЙ МЕТОД
+        public abstract void viewContent(); // АБСТРАКТНИЙ МЕТОД
+
+        @Override
+        protected void validate() {
+            System.out.println("LibraryResource method: validate - Basic metadata confirmed.");
+        }
+
+        public String getTitle() {return title;}
+        public String getAuthor() {return author;}
     }
     
-    public static Publication createFictionBook(String isbn, String title, String author, int year, String genre) {
-        Publication book = new FictionBook(isbn, title, author, year, genre);
-        LibraryStorage.addPublication(book);
-        return book;
+    static class Book extends LibraryResource {
+        private int year;
+        private String fileLink;
+        private boolean available;
+
+        public Book(int id, String title, String author, int year, String fileLink) {
+            super(id, title, author);
+            this.year = year;
+            this.fileLink = fileLink;
+            this.available = true;
+        }
+
+        @Override
+        public boolean isAvailable() {return available;}
+        public void setFileLink(String fileLink) {this.fileLink = fileLink;}
+
+        void setAvailability(boolean status) {
+            this.available = status;
+        }
+        
+        @Override
+        public void viewContent() {
+            System.out.println("Book method: viewContent - Displaying text content.");
+        }
+
+        @Override
+        public String getType() { return "ElectronicBook"; }
+
+        @Override
+        public void displayInfo() {
+            System.out.println("Book: Title: " + title + ", Author: " + author + ", Available: " + available + ", Type: " + getType());
+        }
     }
     
-    public static Publication createNonFictionBook(String isbn, String title, String author, int year, String category) {
-        Publication book = new NonFictionBook(isbn, title, author, year, category);
-        LibraryStorage.addPublication(book);
-        return book;
+    static class AudioBook extends LibraryResource {
+        private int durationSeconds;
+        private boolean available;
+        
+        public AudioBook(int id, String title, String author, int durationSeconds) {
+            super(id, title, author);
+            this.durationSeconds = durationSeconds;
+            this.available = true;
+        }
+
+        @Override
+        public boolean isAvailable() {return available;}
+        
+        @Override
+        public void viewContent() {
+            System.out.println("AudioBook method: viewContent - Playing audio file.");
+        }
+
+        @Override
+        public String getType() { return "AudioResource"; }
+
+        @Override
+        public void displayInfo() {
+            System.out.println("AudioBook: Title: " + title + ", Duration: " + durationSeconds / 60 + " min., Type: " + getType());
+        }
     }
 
-    public static Publication createMagazine(String title, int year, int issueNumber) {
-        Publication mag = new Magazine(title, year, issueNumber);
-        LibraryStorage.addPublication(mag);
-        return mag;
+    static class LibraryCatalog {
+        private List<LibraryResource> resources;
+        private String catalogName;
+
+        public LibraryCatalog(String catalogName) {
+            this.catalogName = catalogName;
+            this.resources = new ArrayList<>();
+        }
+
+        public int getTotalResourceCount() {return resources.size();}
+        public boolean isResourceInCatalog(int resourceId) {return resources.stream().anyMatch(r -> r.getId() == resourceId);}
+
+        void internalAddResource(LibraryResource resource) {
+            this.resources.add(resource);
+        }
+        
+        // Поліморфний метод: працює з абстрактним типом LibraryResource
+        public void listResources(String resourceType) {
+            System.out.println("Catalog method: listResources - Listing " + resourceType + "s:");
+            for (LibraryResource resource : resources) { // Звернення через абстрактний клас
+                if (resource.getType().equals(resourceType)) {
+                    resource.displayInfo(); // Поліморфний виклик
+                }
+            }
+        }
+        
+        @Override
+        public String toString() {
+            return "LibraryCatalog [Name=" + catalogName + ", Total Resources=" + resources.size() + "]";
+        }
+    }
+
+    static class DownloadOrder extends BaseEntity {
+        private int userId;
+        private int resourceId;
+        private LocalDateTime downloadDateTime;
+
+        public DownloadOrder(int downloadId, int userId, int resourceId) {
+            super(downloadId);
+            this.userId = userId;
+            this.resourceId = resourceId;
+        }
+        
+        // Поліморфний метод: приймає абстрактний тип
+        public boolean processDownload(SystemUser user, LibraryResource resource) {
+            if (!resource.isAvailable()) { // Поліморфний виклик абстрактного методу
+                System.out.println("❌ Помилка: Ресурс недоступний для завантаження.");
+                return false;
+            }
+            
+            this.userId = user.getId();
+            this.resourceId = resource.getId();
+            this.downloadDateTime = LocalDateTime.now();
+            
+            // Якщо ресурс є Book, викликаємо спеціалізований метод (для демонстрації)
+            if (resource instanceof Book) {
+                ((Book) resource).setAvailability(false); 
+            }
+            
+            System.out.println("✅ Завантаження ресурсу ID " + resource.getId() + " успішне!");
+            resource.viewContent(); // Поліморфний виклик
+            return true;
+        }
+
+        @Override
+        protected void validate() {} 
+
+        @Override
+        public String getType() { return "DownloadTransaction"; }
+        
+        @Override
+        public void displayInfo() {
+            System.out.println("DownloadOrder [ID=" + id + ", User ID=" + userId + ", Resource ID=" + resourceId + "]");
+        }
+    }
+    
+    static class Category {
+        private int categoryId;
+        private String name;
+        private List<Integer> resourceIds;
+
+        public Category(int categoryId, String name) {
+            this.categoryId = categoryId;
+            this.name = name;
+            this.resourceIds = new ArrayList<>();
+        }
+
+        public void assignResource(int resourceId) {
+            if (!resourceIds.contains(resourceId)) {
+                resourceIds.add(resourceId);
+            }
+        }
+        
+        @Override
+        public String toString() {
+            return "Category [ID=" + categoryId + ", Name='" + name + "', Resources=" + resourceIds.size() + "]";
+        }
+    }
+
+    public static void main(String[] args) {
+        System.out.println("--- ПР 3, 4, 5 & 6: Абстракція та Поліморфізм ---");
+
+        System.out.println("\n>>> 1. Створення об'єктів через Фабрику (класи Book та AudioBook):\n");
+        
+        User standardUser = EntityFactory.createUser("Олена", "Іваненко", "olena_i", "pass123");
+        Admin libraryAdmin = EntityFactory.createAdmin("Петро", "Сидоренко", "admin_p", "root");
+        
+        Book book1 = EntityFactory.createBook("Java. Ефективне програмування", "Джошуа Блох", 2019, "/files/java.pdf");
+        AudioBook audio1 = EntityFactory.createAudioBook("Міфи Стародавньої Греції", "Стівен Фрай", 3600);
+        
+        LibraryCatalog mainCatalog = new LibraryCatalog("Центральний Каталог");
+        mainCatalog.internalAddResource(book1);
+        mainCatalog.internalAddResource(audio1);
+        
+        DownloadOrder order1 = EntityFactory.createDownloadOrder(standardUser, book1);
+
+        System.out.println("\n>>> 2. Демонстрація поліморфізму (Звернення через абстрактний клас BaseEntity):\n");
+        
+        System.out.println("Поліморфний список користувачів:");
+        for (SystemUser user : Storage.USERS) { // Звернення через SystemUser
+            user.displayInfo(); // Поліморфний виклик
+        }
+
+        System.out.println("\nПоліморфний виклик методу viewContent (LibraryResource):");
+        book1.viewContent();  // Пряме посилання Book
+        audio1.viewContent(); // Пряме посилання AudioBook
+        
+        System.out.println("\n----------------------------------------");
+        
+        System.out.println(">>> 3. Демонстрація поліморфних сервісних функцій (Catalog та DownloadOrder):");
+        
+        // 3.1. Поліморфізм у LibraryCatalog
+        mainCatalog.listResources("ElectronicBook");
+        mainCatalog.listResources("AudioResource");
+        
+        // 3.2. Поліморфізм у DownloadOrder (одна функція для різних ресурсів)
+        System.out.println("\nСтатус книги (Book1) ДО завантаження: " + book1.isAvailable());
+        order1.processDownload(standardUser, book1); // Працює з Book
+        System.out.println("Статус книги (Book1) ПІСЛЯ завантаження: " + book1.isAvailable());
+        
+        System.out.println("\nСпроба завантажити AudioBook:");
+        DownloadOrder order2 = EntityFactory.createDownloadOrder(standardUser, audio1);
+        order2.processDownload(libraryAdmin, audio1); // Працює з AudioBook
+        
+        System.out.println("\n--- Завершення роботи ---");
     }
 }
